@@ -53,7 +53,9 @@ import org.gradle.internal.component.external.model.MutableModuleComponentResolv
 import org.gradle.internal.component.model.ComponentArtifactMetadata;
 import org.gradle.internal.component.model.ComponentOverrideMetadata;
 import org.gradle.internal.component.model.ComponentResolveMetadata;
+import org.gradle.internal.component.model.ConfigurationMetadata;
 import org.gradle.internal.component.model.ModuleSource;
+import org.gradle.internal.component.model.ModuleSources;
 import org.gradle.internal.nativeintegration.filesystem.FileSystem;
 import org.gradle.internal.nativeintegration.services.FileSystems;
 import org.gradle.internal.reflect.DirectInstantiator;
@@ -217,6 +219,29 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                     public void resolveArtifact(ComponentArtifactMetadata artifact, ModuleSource moduleSource, BuildableArtifactResolveResult result) {
                         delegate.resolveArtifact(artifact, moduleSource, result);
                     }
+
+                    // Method shims for Gradle 6.x
+                    public void resolveArtifacts(ComponentResolveMetadata component, ConfigurationMetadata variant, BuildableComponentArtifactsResolveResult result) {
+                        try {
+                            final Method delegateResolveArtifacts = delegate.getClass().getMethod(
+                                "resolveArtifacts", ComponentResolveMetadata.class, ConfigurationMetadata.class,
+                                BuildableComponentArtifactsResolveResult.class
+                            );
+                            delegateResolveArtifacts.invoke(delegate, component, variant, result);
+                        } catch (Error | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    public void resolveArtifact(ComponentArtifactMetadata artifact, ModuleSources moduleSource, BuildableArtifactResolveResult result) {
+                        try {
+                            final Method delegatedResolveArtifact = delegate.getClass().getMethod("resolveArtifact", ComponentArtifactMetadata.class, ModuleSources.class, BuildableArtifactResolveResult.class);
+                            delegatedResolveArtifact.invoke(delegate, artifact, moduleSource, result);
+                        } catch (Error | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    // End Method Shims for Gradle 6.x
 
                     @Override
                     public MetadataFetchingCost estimateMetadataFetchingCost(ModuleComponentIdentifier moduleComponentIdentifier) {

@@ -116,6 +116,7 @@ project(':artifactural9') {
     }
 }
 
+def gradleModuleSourcesPath = Paths.get("org", "gradle", "internal", "component", "model", "ModuleSources.class")
 def gradleRepositoryAdapterPath = Paths.get("com", "amadornes", "artifactural", "gradle", "GradleRepositoryAdapter.class")
 def classesDirs = sourceSets.gradlecomp.output.classesDirs.getFiles().first().toPath()
 
@@ -214,6 +215,7 @@ jar {
     from sourceSets.shared.output
     from(sourceSets.gradlecomp.output) {
         exclude gradleRepositoryAdapterPath.toString()
+        exclude gradleModuleSourcesPath.toString()
     }
 
     from patchConstructor.outputs
