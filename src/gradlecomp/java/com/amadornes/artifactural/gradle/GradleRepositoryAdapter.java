@@ -72,6 +72,8 @@ import org.gradle.util.GradleVersion;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Map;
@@ -241,7 +243,23 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     }
 
     private class GeneratingFileResourceRepository implements FileResourceRepository {
-        private final FileSystem fileSystem = FileSystems.getDefault();
+        private final FileSystem fileSystem;
+
+        public GeneratingFileResourceRepository() {
+            try {
+                if (GradleVersion.current().compareTo(GradleVersion.version("6.0.0")) >= 0) {
+                    final Class<?> fileSystemClass = Class.forName("org.gradle.internal.nativeintegration.services.FileSystems");
+                    final Method getDefaultFileSystem = fileSystemClass.getMethod("getDefault");
+                    this.fileSystem = (FileSystem) getDefaultFileSystem.invoke(null);
+                } else {
+                    this.fileSystem = FileSystems.getDefault();
+                }
+            } catch (IllegalAccessException | IllegalArgumentException | Error | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e) {
+                throw new UnsupportedOperationException("Could not get the Gradle FileSystem object", e);
+            }
+
+        }
+
         private void debug(String message) {
             //System.out.println(message);
         }
