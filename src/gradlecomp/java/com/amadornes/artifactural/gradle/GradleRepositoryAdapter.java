@@ -31,6 +31,7 @@ import org.gradle.api.artifacts.component.ComponentArtifactIdentifier;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.internal.artifacts.BaseRepositoryFactory;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ComponentResolvers;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ConfiguredModuleComponentRepository;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ModuleComponentRepositoryAccess;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ResolvableArtifact;
@@ -55,6 +56,8 @@ import org.gradle.internal.component.model.ComponentResolveMetadata;
 import org.gradle.internal.component.model.ModuleSource;
 import org.gradle.internal.nativeintegration.filesystem.FileSystem;
 import org.gradle.internal.nativeintegration.services.FileSystems;
+import org.gradle.internal.reflect.DirectInstantiator;
+import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.resolve.result.BuildableArtifactResolveResult;
 import org.gradle.internal.resolve.result.BuildableArtifactSetResolveResult;
 import org.gradle.internal.resolve.result.BuildableComponentArtifactsResolveResult;
@@ -172,6 +175,12 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
             @Override public InstantiatingAction<ComponentMetadataSupplierDetails> getComponentMetadataSupplier() { return resolver.getComponentMetadataSupplier(); }
             @Override public boolean isDynamicResolveMode() { return resolver.isDynamicResolveMode(); }
             @Override public boolean isLocal() { return resolver.isLocal(); }
+            // Bytecode to implement added changes in Gradle 6.6.0 that expressly adds two methods
+            // to the interface without a default implementation because #internals
+            public void setComponentResolvers(ComponentResolvers resolver) { }
+            public Instantiator getComponentMetadataInstantiator() {
+                return resolver.getComponentMetadataInstantiator();
+            }
 
             private ModuleComponentRepositoryAccess wrap(ModuleComponentRepositoryAccess delegate) {
                 return new ModuleComponentRepositoryAccess() {
