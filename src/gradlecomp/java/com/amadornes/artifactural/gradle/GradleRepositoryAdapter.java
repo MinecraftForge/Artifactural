@@ -31,6 +31,7 @@ import org.gradle.api.artifacts.component.ComponentArtifactIdentifier;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.internal.artifacts.BaseRepositoryFactory;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ComponentResolvers;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ConfiguredModuleComponentRepository;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ModuleComponentRepositoryAccess;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ResolvableArtifact;
@@ -52,9 +53,11 @@ import org.gradle.internal.component.external.model.MutableModuleComponentResolv
 import org.gradle.internal.component.model.ComponentArtifactMetadata;
 import org.gradle.internal.component.model.ComponentOverrideMetadata;
 import org.gradle.internal.component.model.ComponentResolveMetadata;
-import org.gradle.internal.component.model.ModuleSource;
+import org.gradle.internal.component.model.ConfigurationMetadata;
+import org.gradle.internal.component.model.ModuleSources;
 import org.gradle.internal.nativeintegration.filesystem.FileSystem;
 import org.gradle.internal.nativeintegration.services.FileSystems;
+import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.resolve.result.BuildableArtifactResolveResult;
 import org.gradle.internal.resolve.result.BuildableArtifactSetResolveResult;
 import org.gradle.internal.resolve.result.BuildableComponentArtifactsResolveResult;
@@ -68,7 +71,6 @@ import org.gradle.internal.resource.local.LocalFileStandInExternalResource;
 import org.gradle.internal.resource.local.LocallyAvailableExternalResource;
 import org.gradle.internal.resource.metadata.ExternalResourceMetaData;
 import org.gradle.internal.resource.transfer.DefaultCacheAwareExternalResourceAccessor;
-import org.gradle.util.GradleVersion;
 
 import java.io.File;
 import java.io.IOException;
@@ -92,16 +94,7 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
 
         GradleRepositoryAdapter repo;
 
-        // On Gradle 4.10 above, we need to use the constructor with the 'ObjectFactory' parameter
-        // (which can be safely passed as null - see BaseMavenInstaller).
-        // We use Gradle410RepositoryAdapter, which actually overrides 'getDescriptor'
-        if (GradleVersion.current().compareTo(GradleVersion.version("4.10")) >= 0) {
-             repo = new Gradle410RepositoryAdapter(null, repository, maven);
-        } else {
-            // On versions of gradle older than 4.10, we use the no-arg super constructor
-            repo = new GradleRepositoryAdapter(repository, maven);
-        }
-
+        repo = new GradleRepositoryAdapter(repository, maven);
         repo.setName(name);
         handler.add(repo);
         return repo;
@@ -171,6 +164,13 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
             @Override public boolean isDynamicResolveMode() { return resolver.isDynamicResolveMode(); }
             @Override public boolean isLocal() { return resolver.isLocal(); }
 
+            @Override
+            public void setComponentResolvers(ComponentResolvers resolver) { }
+            @Override
+            public Instantiator getComponentMetadataInstantiator() {
+                return resolver.getComponentMetadataInstantiator();
+            }
+
             private ModuleComponentRepositoryAccess wrap(ModuleComponentRepositoryAccess delegate) {
                 return new ModuleComponentRepositoryAccess() {
                     @Override
@@ -188,13 +188,13 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                     }
 
                     @Override
-                    public void listModuleVersions(ModuleDependencyMetadata dependency, BuildableModuleVersionListingResolveResult result) {
-                        delegate.listModuleVersions(dependency, result);
+                    public void resolveArtifacts(ComponentResolveMetadata component, ConfigurationMetadata variant, BuildableComponentArtifactsResolveResult result) {
+                        delegate.resolveArtifacts(component, variant, result);
                     }
 
                     @Override
-                    public void resolveArtifacts(ComponentResolveMetadata component, BuildableComponentArtifactsResolveResult result) {
-                        delegate.resolveArtifacts(component, result);
+                    public void listModuleVersions(ModuleDependencyMetadata dependency, BuildableModuleVersionListingResolveResult result) {
+                        delegate.listModuleVersions(dependency, result);
                     }
 
                     @Override
@@ -203,9 +203,10 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                     }
 
                     @Override
-                    public void resolveArtifact(ComponentArtifactMetadata artifact, ModuleSource moduleSource, BuildableArtifactResolveResult result) {
-                        delegate.resolveArtifact(artifact, moduleSource, result);
+                    public void resolveArtifact(ComponentArtifactMetadata artifact, ModuleSources moduleSources, BuildableArtifactResolveResult result) {
+                        delegate.resolveArtifact(artifact, moduleSources, result);
                     }
+
 
                     @Override
                     public MetadataFetchingCost estimateMetadataFetchingCost(ModuleComponentIdentifier moduleComponentIdentifier) {
@@ -216,21 +217,8 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
         };
     }
 
-    // This method will be deleted entirely in build.gradle
-    // In order for this class to compile, this method needs to exist
-    // at compile-time. However, the class 'RepositoryDescriptor' doesn't
-    // exist in Gradle 4.9. If we try to classload a class
-    // that contains RepositoryDescriptor as a method return type,
-    // the JVM will try to classload RepositoryDescriptor, leading
-    // to a NoClassDefFoundError
-
-    // To fix this, we strip out this method at build time.
-    // At runtime, we instantiate Gradle410RepositoryAdapter
-    // when we're running on Gradle 4.10 on above.
-    // This ensures that 'getDescriptor' exists on Gradle 4.10,
-    // and doesn't existon Gradle 4.9
     public RepositoryDescriptor getDescriptor() {
-        throw new Error("This method should be been stripped at build time!");
+        return new FlatDirRepositoryDescriptor("ArtifacturalRepository", new ArrayList<>());
     }
 
 

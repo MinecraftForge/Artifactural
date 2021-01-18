@@ -9,28 +9,23 @@ buildscript {
 }
 
 plugins {
+  id 'java-library'
+  id 'maven-publish'
+  id 'eclipse'
   id 'net.minecrell.licenser' version '0.3'
   id 'org.ajoberstar.grgit' version '2.3.0'
   //id 'com.github.johnrengelman.shadow' version '2.0.4'
 }
 
-import java.nio.file.Paths
-import org.objectweb.asm.ClassReader
-import org.objectweb.asm.ClassWriter
-import org.objectweb.asm.Opcodes
-import org.objectweb.asm.tree.ClassNode
-import org.objectweb.asm.tree.MethodInsnNode
-import org.objectweb.asm.tree.VarInsnNode
-import org.objectweb.asm.tree.InsnNode
-
-import java.util.jar.JarFile
-
-apply plugin: 'java'
-apply plugin: 'maven-publish'
-apply plugin: 'eclipse'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+}
 
 group = 'net.minecraftforge'
 version = gitVersion()
+
 def gitVersion() {
     def raw = grgit.describe(longDescr: true)
     def desc = (raw == null ? 'unknown-unknown-unknown' : raw).split('-') as List
@@ -83,17 +78,22 @@ dependencies {
 tasks.withType(JavaCompile) {
     options.encoding = 'utf-8'
     options.deprecation = true
-    sourceCompatibility = 8
-    targetCompatibility = 8
-    options.compilerArgs.addAll(['--release', '8'])
+}
+tasks.withType(JavaCompile).configureEach {
+    javaCompiler = javaToolchains.compilerFor {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+}
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(8)
 }
 
 project(':artifactural9') {
     apply plugin: 'java'
     apply plugin: 'eclipse'
-    sourceCompatibility = targetCompatibility = 9
     group = rootProject.group
-    
+    java.toolchain.languageVersion = JavaLanguageVersion.of(9)
+
     sourceSets {
         java9.java.srcDirs = [rootProject.file('src/java9').getAbsolutePath()]
     }
@@ -110,114 +110,19 @@ project(':artifactural9') {
     
     tasks.withType(JavaCompile) {
         options.encoding = 'utf-8'
-        sourceCompatibility = 9
-        targetCompatibility = 9
-        options.compilerArgs.addAll(['--release', '9'])
+        javaCompiler = javaToolchains.compilerFor {
+            languageVersion = JavaLanguageVersion.of(9)
+        }
     }
 }
 
-def gradleRepositoryAdapterPath = Paths.get("com", "amadornes", "artifactural", "gradle", "GradleRepositoryAdapter.class")
-def classesDirs = sourceSets.gradlecomp.output.classesDirs.getFiles().first().toPath()
 
-
-def _constructorName = "<init>"
-def _constructorDesc = "(Lcom/amadornes/artifactural/api/repository/Repository;Lorg/gradle/api/internal/artifacts/repositories/DefaultMavenLocalArtifactRepository;)V"
-def _modifiedSuperDesc = "()V"
-
-// This task patches 'GradleRepositoryAdapter' to make it compatibile with both Gradle 4.9 and 4.10
-// In Gradle 4.9, the constructor of AbstractArtifactRepository changes has zero arguments
-// (instead of the one-argument constructor in 4.10, which we compile against)
-// It's not possible to write a normal Java class that calls a constructor which doesn't exist at compile time.
-// Therefore, we need to patch the bytecode of the class to properly call the non-arg super() constrcutor
-class PatchGradleRepositoryAdapter extends DefaultTask {
-
-    @Input String constructorName
-    @Input String constructorDesc
-    @Input String modifiedSuperDesc
-    @Input File gradleRepositoryAdapter
-    @Input File classesDir
-    @OutputDirectory java.nio.file.Path outputDir
-
-
-    @TaskAction
-    void patchClass() {
-        def originalGradleRepositoryAdapter = Paths.get(classesDir.toString(), gradleRepositoryAdapter.toString())
-
-        ClassNode node = new ClassNode()
-        ClassReader reader = new ClassReader(new FileInputStream(originalGradleRepositoryAdapter.toFile()))
-        reader.accept(node, 0)
-
-
-        def constructor = node.methods.find {
-            it.name == constructorName && it.desc == constructorDesc
-        }
-
-        def getDescriptor = node.methods.find {
-            it.name == "getDescriptor"
-        }
-
-        if (constructor == null) {
-            throw new RuntimeException("Failed to find target constructor!")
-        }
-
-        if (getDescriptor == null) {
-            throw new RuntimeException("Failed to find getDescriptor()")
-        }
-
-        // Strip out this method - it only exists
-        // so that GradleRepositoryAdapter will compile
-        node.methods.remove(getDescriptor)
-
-        def superInvoc = constructor.instructions.find {
-            it instanceof MethodInsnNode && it.owner == "org/gradle/api/internal/artifacts/repositories/AbstractArtifactRepository"
-        } as MethodInsnNode
-
-        if (superInvoc == null) {
-            throw new RuntimeException("Failed to find target super() invocation!")
-        }
-
-        superInvoc.desc = modifiedSuperDesc
-
-        def aconstNull = superInvoc.previous
-        if (!(aconstNull instanceof InsnNode) || aconstNull.type != 0) {
-            throw new RuntimeException("Unexpected instruction: " + aconstNull)
-        }
-
-        constructor.instructions.remove(aconstNull)
-
-        // Push first parameter of constructor (the ObjectFactory) onto the stack.
-        // This has the effect of calling super(objectFactory)
-        //constructor.instructions.insertBefore(superInvoc, new VarInsnNode(Opcodes.ALOAD, 1))
-
-        ClassWriter writer = new ClassWriter(0)
-        node.accept(writer)
-
-        def outputFile = outputDir.resolve(gradleRepositoryAdapter.toPath()).toFile()
-
-        outputFile.parentFile.mkdirs()
-        FileOutputStream fs = new FileOutputStream(outputFile)
-        fs.write(writer.toByteArray())
-    }
-}
-
-task patchConstructor(type: PatchGradleRepositoryAdapter) {
-    constructorName = _constructorName
-    constructorDesc = _constructorDesc
-    modifiedSuperDesc = _modifiedSuperDesc
-    classesDir = classesDirs.toFile()
-    outputDir = Paths.get(buildDir.toString(), "modifiedclasses")
-    gradleRepositoryAdapter = gradleRepositoryAdapterPath.toFile()
-}
 
 jar {
     from sourceSets.api.output
     from sourceSets.shared.output
-    from(sourceSets.gradlecomp.output) {
-        exclude gradleRepositoryAdapterPath.toString()
-    }
+    from(sourceSets.gradlecomp.output)
 
-    from patchConstructor.outputs
-    
     into('META-INF/versions/9') {
         from project(':artifactural9').sourceSets.java9.output
     }
@@ -226,38 +131,6 @@ jar {
         attributes(
             'Multi-Release': 'true'
         )
-    }
-}
-
-jar.doLast {
-    def jarPath = it.outputs.files.getFiles().first()
-    def jarFile = new JarFile(jarPath)
-    def entry = jarFile.getEntry(gradleRepositoryAdapterPath.toString().replace('\\', '/'))
-    def stream = jarFile.getInputStream(entry)
-
-    ClassReader reader = new ClassReader(stream)
-    ClassNode node = new ClassNode()
-    reader.accept(node, 0)
-
-    def constructor = node.methods.find {
-        it.name == _constructorName && it.desc == _constructorDesc
-    }
-
-    def superInvoc = constructor.instructions.find {
-        it instanceof MethodInsnNode && it.owner == "org/gradle/api/internal/artifacts/repositories/AbstractArtifactRepository"
-    } as MethodInsnNode
-
-    if (superInvoc.desc == _modifiedSuperDesc) {
-        println("Successfully modified super() call!")
-    } else {
-        throw new RuntimeException("Failed to modify super() invocation - got desc of " + superInvoc.desc)
-    }
-
-    def getDescriptor = node.methods.find { it.name == "getDescriptor"}
-    if (getDescriptor != null) {
-        throw new RuntimeException("Failed to remove getDescriptor with signature: " + getDescriptor.signature)
-    } else {
-        println("Successfully stripped getDescriptor method!")
     }
 }
 
@@ -321,7 +194,3 @@ publishing {
     }
 }
 
-if (!JavaVersion.current().java9Compatible) {
-    println("You must build this with JDK 9")
-    System.exit(1)
-}
