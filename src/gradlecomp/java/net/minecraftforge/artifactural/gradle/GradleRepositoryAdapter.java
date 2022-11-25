@@ -120,6 +120,7 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     // This constructor is modified via bytecode manipulation in 'build.gradle'
     // DO NOT change this without modifying 'build.gradle'
     // This constructor is used on Gradle 7.5.* and below
+    @Deprecated // TODO - remove this constructor when we can break ABI compatibility
     private GradleRepositoryAdapter(Repository repository, DefaultMavenLocalArtifactRepository local) {
         // This is replaced with a call to 'super(getObjectFactory(local))'
         super(getObjectFactory(local), null);
@@ -129,6 +130,7 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
         this.cache = new LocatedArtifactCache(new File(root));
     }
 
+    // This constructor is used on Gradle 7.6 and above
     private GradleRepositoryAdapter(Repository repository, DefaultMavenLocalArtifactRepository local, VersionParser versionParser) {
         super(getObjectFactory(local), versionParser);
         this.repository = repository;
