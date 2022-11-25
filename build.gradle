@@ -1,6 +1,13 @@
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.tree.AbstractInsnNode
+import org.objectweb.asm.tree.InsnNode
+import org.objectweb.asm.tree.MethodInsnNode
+import org.objectweb.asm.Label
+
 buildscript {
     repositories {
         mavenCentral()
+        gradlePluginPortal()
     }
     dependencies {
         classpath 'org.eclipse.jgit:org.eclipse.jgit:5.10.0.202012080955-r'
@@ -11,7 +18,7 @@ plugins {
   id 'java-library'
   id 'maven-publish'
   id 'eclipse'
-  id 'org.cadixdev.licenser' version '0.6.0'
+  id 'org.cadixdev.licenser' version '0.6.1'
 }
 
 group = 'net.minecraftforge'
@@ -65,10 +72,74 @@ java {
     withSourcesJar()
 }
 
+tasks.create('transformJar', JarTransformationTask) {
+    addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter') {
+        it.methods.find {
+            it.name == '<init>' && it.desc == '(Lnet/minecraftforge/artifactural/api/repository/Repository;Lorg/gradle/api/internal/artifacts/repositories/DefaultMavenLocalArtifactRepository;)V'
+        }?.tap {
+            it.instructions.find {
+                it instanceof InsnNode && it.type == 0
+            }?.tap(it.instructions.&remove)
+            it.instructions.find { it instanceof MethodInsnNode && it.owner == 'org/gradle/api/internal/artifacts/repositories/AbstractArtifactRepository' && it.name == '<init>' }?.tap { AbstractInsnNode node ->
+                ((MethodInsnNode) node).desc = '(Lorg/gradle/api/model/ObjectFactory;)V'
+            }
+        }
+    }
+    addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1') { clazz ->
+        {
+            final method = clazz.visitMethod(Opcodes.ACC_PUBLIC, 'resolveArtifact', '(Lorg/gradle/internal/component/model/ComponentArtifactMetadata;Lorg/gradle/internal/component/model/ModuleSources;Lorg/gradle/internal/resolve/result/BuildableArtifactResolveResult;)V', null, new String[] {})
+            final l0 = new Label()
+            method.visitLabel(l0)
+
+            method.visitVarInsn(Opcodes.ALOAD, 0)
+            method.visitFieldInsn(Opcodes.GETFIELD, 'net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1', 'val$delegate', 'Lorg/gradle/api/internal/artifacts/ivyservice/ivyresolve/ModuleComponentRepositoryAccess;')
+            method.visitVarInsn(Opcodes.ALOAD, 1)
+            method.visitVarInsn(Opcodes.ALOAD, 2)
+            method.visitVarInsn(Opcodes.ALOAD, 3)
+            method.visitMethodInsn(Opcodes.INVOKEINTERFACE, 'org/gradle/api/internal/artifacts/ivyservice/ivyresolve/ModuleComponentRepositoryAccess', 'resolveArtifact', '(Lorg/gradle/internal/component/model/ComponentArtifactMetadata;Lorg/gradle/internal/component/model/ModuleSources;Lorg/gradle/internal/resolve/result/BuildableArtifactResolveResult;)V', true)
+            final l1 = new Label()
+            method.visitLabel(l1)
+            method.visitInsn(Opcodes.RETURN)
+            final l2 = new Label()
+            method.visitLabel(l2)
+            method.visitLocalVariable('this', 'Lnet/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1;', null, l0, l2, 0)
+            method.visitLocalVariable('componentArtifactMetadata', 'Lorg/gradle/internal/component/model/ComponentArtifactMetadata;', null, l0, l2, 1)
+            method.visitLocalVariable('moduleSources', 'Lorg/gradle/internal/component/model/ModuleSources;', null, l0, l2, 2)
+            method.visitLocalVariable('buildableArtifactFileResolveResult', 'Lorg/gradle/internal/resolve/result/BuildableArtifactResolveResult;', null, l0, l2, 3)
+            method.visitEnd()
+        }
+
+        {
+            final method = clazz.visitMethod(Opcodes.ACC_PUBLIC, 'resolveArtifacts', '(Lorg/gradle/internal/component/model/ComponentArtifactMetadata;Lorg/gradle/internal/component/model/ConfigurationMetadata;Lorg/gradle/internal/resolve/result/BuildableComponentArtifactsResolveResult;)V', null, new String[] {})
+            final l0 = new Label()
+            method.visitLabel(l0)
+
+            method.visitVarInsn(Opcodes.ALOAD, 0)
+            method.visitFieldInsn(Opcodes.GETFIELD, 'net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1', 'val$delegate', 'Lorg/gradle/api/internal/artifacts/ivyservice/ivyresolve/ModuleComponentRepositoryAccess;')
+            method.visitVarInsn(Opcodes.ALOAD, 1)
+            method.visitVarInsn(Opcodes.ALOAD, 2)
+            method.visitVarInsn(Opcodes.ALOAD, 3)
+            method.visitMethodInsn(Opcodes.INVOKEINTERFACE, 'org/gradle/api/internal/artifacts/ivyservice/ivyresolve/ModuleComponentRepositoryAccess', 'resolveArtifacts', '(Lorg/gradle/internal/component/model/ComponentArtifactMetadata;Lorg/gradle/internal/component/model/ModuleSources;Lorg/gradle/internal/resolve/result/BuildableComponentArtifactsResolveResult;)V', true)
+            final l1 = new Label()
+            method.visitLabel(l1)
+            method.visitInsn(Opcodes.RETURN)
+            final l2 = new Label()
+            method.visitLabel(l2)
+            method.visitLocalVariable('this', 'Lnet/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1;', null, l0, l2, 0)
+            method.visitLocalVariable('componentArtifactMetadata', 'Lorg/gradle/internal/component/model/ComponentArtifactMetadata;', null, l0, l2, 1)
+            method.visitLocalVariable('metadata', 'Lorg/gradle/internal/component/model/ConfigurationMetadata;', null, l0, l2, 2)
+            method.visitLocalVariable('buildableArtifactFileResolveResult', 'Lorg/gradle/internal/resolve/result/BuildableComponentArtifactsResolveResult;', null, l0, l2, 3)
+            method.visitEnd()
+        }
+    }
+    file = tasks.jar.archiveFile.get().asFile
+}
+
 jar {
     from sourceSets.api.output
     from sourceSets.shared.output
     from sourceSets.gradlecomp.output
+	finalizedBy('transformJar')
 }
 
 sourcesJar {

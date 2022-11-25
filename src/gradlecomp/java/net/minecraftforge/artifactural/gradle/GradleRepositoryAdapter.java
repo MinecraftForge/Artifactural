@@ -34,6 +34,7 @@ import org.gradle.api.internal.artifacts.BaseRepositoryFactory;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ComponentResolvers;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ConfiguredModuleComponentRepository;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ModuleComponentRepositoryAccess;
+import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.strategy.VersionParser;
 import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ResolvableArtifact;
 import org.gradle.api.internal.artifacts.repositories.AbstractArtifactRepository;
 import org.gradle.api.internal.artifacts.repositories.DefaultMavenLocalArtifactRepository;
@@ -53,14 +54,12 @@ import org.gradle.internal.component.external.model.MutableModuleComponentResolv
 import org.gradle.internal.component.model.ComponentArtifactMetadata;
 import org.gradle.internal.component.model.ComponentOverrideMetadata;
 import org.gradle.internal.component.model.ComponentResolveMetadata;
-import org.gradle.internal.component.model.ConfigurationMetadata;
 import org.gradle.internal.component.model.ModuleSources;
 import org.gradle.internal.nativeintegration.filesystem.FileSystem;
 import org.gradle.internal.nativeintegration.services.FileSystems;
 import org.gradle.internal.reflect.Instantiator;
-import org.gradle.internal.resolve.result.BuildableArtifactResolveResult;
+import org.gradle.internal.resolve.result.BuildableArtifactFileResolveResult;
 import org.gradle.internal.resolve.result.BuildableArtifactSetResolveResult;
-import org.gradle.internal.resolve.result.BuildableComponentArtifactsResolveResult;
 import org.gradle.internal.resolve.result.BuildableModuleComponentMetaDataResolveResult;
 import org.gradle.internal.resolve.result.BuildableModuleVersionListingResolveResult;
 import org.gradle.internal.resource.ExternalResourceName;
@@ -71,6 +70,7 @@ import org.gradle.internal.resource.local.LocalFileStandInExternalResource;
 import org.gradle.internal.resource.local.LocallyAvailableExternalResource;
 import org.gradle.internal.resource.metadata.ExternalResourceMetaData;
 import org.gradle.internal.resource.transfer.DefaultCacheAwareExternalResourceAccessor;
+import org.gradle.util.GradleVersion;
 
 import java.io.File;
 import java.io.IOException;
@@ -81,7 +81,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GradleRepositoryAdapter extends AbstractArtifactRepository implements ResolutionAwareRepository {
-
     private static final Pattern URL_PATTERN = Pattern.compile(
             "^(?<group>\\S+(?:/\\S+)*)/(?<name>\\S+)/(?<version>\\S+)/" +
                     "\\2-\\3(?:-(?<classifier>[^.\\s]+))?\\.(?<extension>\\S+)$");
@@ -96,9 +95,13 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
             m.artifact();
         });
 
-        GradleRepositoryAdapter repo;
+        final GradleRepositoryAdapter repo;
+        if (GradleVersion.current().compareTo(GradleVersion.version("7.6")) >= 0) {
+            repo = new GradleRepositoryAdapter(repository, maven, getVersionParser(maven));
+        } else {
+            repo = new GradleRepositoryAdapter(repository, maven);
+        }
 
-        repo = new GradleRepositoryAdapter(repository, maven);
         repo.setName(name);
         handler.add(repo);
         return repo;
@@ -112,26 +115,30 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
 
     // This constructor is modified via bytecode manipulation in 'build.gradle'
     // DO NOT change this without modifying 'build.gradle'
-    // This contructor is used on Gradle 4.9 and below
+    // This constructor is used on Gradle 7.5.* and below
     private GradleRepositoryAdapter(Repository repository, DefaultMavenLocalArtifactRepository local) {
-        // This is replaced with a call to 'super()', with no arguments
-        super(null);
+        // This is replaced with a call to 'super(objectFactory)'
+        super(getObjectFactory(local), null);
         this.repository = repository;
         this.local = local;
         this.root = cleanRoot(local.getUrl());
         this.cache = new LocatedArtifactCache(new File(root));
     }
 
-
-    // This constructor is used on Gradle 4.10 and above
-    GradleRepositoryAdapter(ObjectFactory objectFactory, Repository repository, DefaultMavenLocalArtifactRepository local) {
-        super(objectFactory);
-        // This duplication from the above two-argument constructor is unfortunate,
-        // but unavoidable
+    private GradleRepositoryAdapter(Repository repository, DefaultMavenLocalArtifactRepository local, VersionParser versionParser) {
+        super(getObjectFactory(local), versionParser);
         this.repository = repository;
         this.local = local;
         this.root = cleanRoot(local.getUrl());
         this.cache = new LocatedArtifactCache(new File(root));
+    }
+
+    private static ObjectFactory getObjectFactory(DefaultMavenLocalArtifactRepository local) {
+        return ReflectionUtils.get(local, "objectFactory");
+    }
+
+    private static VersionParser getVersionParser(DefaultMavenLocalArtifactRepository local) {
+        return ReflectionUtils.get(local, "versionParser");
     }
 
     @Override
@@ -192,11 +199,6 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                     }
 
                     @Override
-                    public void resolveArtifacts(ComponentResolveMetadata component, ConfigurationMetadata variant, BuildableComponentArtifactsResolveResult result) {
-                        delegate.resolveArtifacts(component, variant, result);
-                    }
-
-                    @Override
                     public void listModuleVersions(ModuleDependencyMetadata dependency, BuildableModuleVersionListingResolveResult result) {
                         delegate.listModuleVersions(dependency, result);
                     }
@@ -207,10 +209,9 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                     }
 
                     @Override
-                    public void resolveArtifact(ComponentArtifactMetadata artifact, ModuleSources moduleSources, BuildableArtifactResolveResult result) {
-                        delegate.resolveArtifact(artifact, moduleSources, result);
+                    public void resolveArtifact(ComponentArtifactMetadata componentArtifactMetadata, ModuleSources moduleSources, BuildableArtifactFileResolveResult buildableArtifactFileResolveResult) {
+                        delegate.resolveArtifact(componentArtifactMetadata, moduleSources, buildableArtifactFileResolveResult);
                     }
-
 
                     @Override
                     public MetadataFetchingCost estimateMetadataFetchingCost(ModuleComponentIdentifier moduleComponentIdentifier) {
