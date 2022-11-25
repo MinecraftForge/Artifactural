@@ -81,6 +81,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GradleRepositoryAdapter extends AbstractArtifactRepository implements ResolutionAwareRepository {
+
     private static final Pattern URL_PATTERN = Pattern.compile(
             "^(?<group>\\S+(?:/\\S+)*)/(?<name>\\S+)/(?<version>\\S+)/" +
                     "\\2-\\3(?:-(?<classifier>[^.\\s]+))?\\.(?<extension>\\S+)$");
@@ -96,9 +97,12 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
         });
 
         final GradleRepositoryAdapter repo;
+
         if (GradleVersion.current().compareTo(GradleVersion.version("7.6")) >= 0) {
+            // If we are on gradle 7.6+ we want to use the super constructor with 2 arguments (with the VersionParser)
             repo = new GradleRepositoryAdapter(repository, maven, getVersionParser(maven));
         } else {
+            // If we are on gradle 4.10 - 7.5 we use the super constructor with only the ObjectFactory parameter
             repo = new GradleRepositoryAdapter(repository, maven);
         }
 
@@ -117,7 +121,7 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     // DO NOT change this without modifying 'build.gradle'
     // This constructor is used on Gradle 7.5.* and below
     private GradleRepositoryAdapter(Repository repository, DefaultMavenLocalArtifactRepository local) {
-        // This is replaced with a call to 'super(objectFactory)'
+        // This is replaced with a call to 'super(getObjectFactory(local))'
         super(getObjectFactory(local), null);
         this.repository = repository;
         this.local = local;
@@ -133,12 +137,12 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
         this.cache = new LocatedArtifactCache(new File(root));
     }
 
-    private static ObjectFactory getObjectFactory(DefaultMavenLocalArtifactRepository local) {
-        return ReflectionUtils.get(local, "objectFactory");
+    private static ObjectFactory getObjectFactory(DefaultMavenLocalArtifactRepository maven) {
+        return ReflectionUtils.get(maven, "objectFactory");
     }
 
-    private static VersionParser getVersionParser(DefaultMavenLocalArtifactRepository local) {
-        return ReflectionUtils.get(local, "versionParser");
+    private static VersionParser getVersionParser(DefaultMavenLocalArtifactRepository maven) {
+        return ReflectionUtils.get(maven, "versionParser");
     }
 
     @Override

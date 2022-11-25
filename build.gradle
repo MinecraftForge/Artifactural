@@ -1,3 +1,4 @@
+import net.minecraftforge.artifactural.buildscript.JarTransformationTask
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.AbstractInsnNode
 import org.objectweb.asm.tree.InsnNode
@@ -72,7 +73,7 @@ java {
     withSourcesJar()
 }
 
-tasks.create('transformJar', JarTransformationTask) {
+tasks.register('transformJar', JarTransformationTask).configure {
     addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter') {
         it.methods.find {
             it.name == '<init>' && it.desc == '(Lnet/minecraftforge/artifactural/api/repository/Repository;Lorg/gradle/api/internal/artifacts/repositories/DefaultMavenLocalArtifactRepository;)V'
@@ -85,6 +86,7 @@ tasks.create('transformJar', JarTransformationTask) {
             }
         }
     }
+
     addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1') { clazz ->
         {
             final method = clazz.visitMethod(Opcodes.ACC_PUBLIC, 'resolveArtifact', '(Lorg/gradle/internal/component/model/ComponentArtifactMetadata;Lorg/gradle/internal/component/model/ModuleSources;Lorg/gradle/internal/resolve/result/BuildableArtifactResolveResult;)V', null, new String[] {})
@@ -132,7 +134,8 @@ tasks.create('transformJar', JarTransformationTask) {
             method.visitEnd()
         }
     }
-    file = tasks.jar.archiveFile.get().asFile
+
+    file.set(tasks.jar.archiveFile)
 }
 
 jar {
