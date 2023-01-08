@@ -1,30 +1,20 @@
 import net.minecraftforge.artifactural.buildscript.JarTransformationTask
 import org.objectweb.asm.Opcodes
-import org.objectweb.asm.tree.AbstractInsnNode
 import org.objectweb.asm.tree.InsnNode
 import org.objectweb.asm.tree.MethodInsnNode
 import org.objectweb.asm.Label
-
-buildscript {
-    repositories {
-        mavenCentral()
-        gradlePluginPortal()
-    }
-    dependencies {
-        classpath 'org.eclipse.jgit:org.eclipse.jgit:5.10.0.202012080955-r'
-    }
-}
 
 plugins {
   id 'java-library'
   id 'maven-publish'
   id 'eclipse'
   id 'org.cadixdev.licenser' version '0.6.1'
+  id 'net.minecraftforge.gradleutils' version '2.+'
 }
 
 group = 'net.minecraftforge'
 
-version = gitVersion()
+version = gradleutils.getTagOffsetVersion()
 println('Version: ' + version + ' Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
 
 sourceSets {
@@ -34,7 +24,6 @@ sourceSets {
 }
 
 repositories {
-    jcenter()
     mavenCentral()
     maven {
         url = 'https://maven.minecraftforge.net'
@@ -63,7 +52,7 @@ dependencies {
 }
 
 
-tasks.withType(JavaCompile) {
+tasks.withType(JavaCompile).configureEach {
     options.encoding = 'utf-8'
     options.deprecation = true
 }
@@ -79,11 +68,11 @@ tasks.register('transformJar', JarTransformationTask).configure {
             it.name == '<init>' && it.desc == '(Lnet/minecraftforge/artifactural/api/repository/Repository;Lorg/gradle/api/internal/artifacts/repositories/DefaultMavenLocalArtifactRepository;)V'
         }?.tap {
             it.instructions.find {
-                it instanceof InsnNode && it.type == 0
+                it instanceof InsnNode && it.opcode == Opcodes.ACONST_NULL
             }?.tap(it.instructions.&remove)
-            it.instructions.find { it instanceof MethodInsnNode && it.owner == 'org/gradle/api/internal/artifacts/repositories/AbstractArtifactRepository' && it.name == '<init>' }?.tap { AbstractInsnNode node ->
-                ((MethodInsnNode) node).desc = '(Lorg/gradle/api/model/ObjectFactory;)V'
-            }
+            it.instructions.find {
+                it instanceof MethodInsnNode && it.owner == 'org/gradle/api/internal/artifacts/repositories/AbstractArtifactRepository' && it.name == '<init>'
+            }?.tap { (it as MethodInsnNode).desc = '(Lorg/gradle/api/model/ObjectFactory;)V' }
         }
     }
 
@@ -186,71 +175,6 @@ publishing {
         }
     }
     repositories {
-        maven {
-            if (System.env.MAVEN_USER) {
-                url 'https://maven.minecraftforge.net/'
-                authentication {
-                    basic(BasicAuthentication)
-                }
-                credentials {
-                    username = System.env.MAVEN_USER ?: 'not'
-                    password = System.env.MAVEN_PASSWORD ?: 'set'
-                }
-            } else {
-                url 'file://' + rootProject.file('repo').getAbsolutePath()
-            }
-        }
+        maven gradleutils.getPublishingForgeMaven()
     }
 }
-
-def gitInfo(dir) {
-    String.metaClass.rsplit = { String del, int limit = -1 ->
-        def lst = new ArrayList()
-        def x = 0, idx
-        def tmp = delegate
-        while ((idx = tmp.lastIndexOf(del)) != -1 && (limit == -1 || x++ < limit)) {
-            lst.add(0, tmp.substring(idx + del.length(), tmp.length()))
-            tmp = tmp.substring(0, idx)
-        }
-        lst.add(0, tmp)
-        return lst
-    }
-    
-    def git = null
-    try {
-        git = org.eclipse.jgit.api.Git.open(dir)
-    } catch (org.eclipse.jgit.errors.RepositoryNotFoundException e) {
-        return [
-            tag: '0.0',
-            offset: '0',
-            hash: '00000000',
-            branch: 'master',
-            commit: '0000000000000000000000',
-            abbreviatedId: '00000000'
-        ]
-    }
-    def desc = git.describe().setLong(true).setTags(true).call().rsplit('-', 2)
-    def head = git.repository.exactRef('HEAD')
-    def longBranch = head.symbolic ? head?.target?.name : null // matches Repository.getFullBranch() but returning null when on a detached HEAD
-
-    def ret = [:]
-    ret.tag = desc[0]
-    ret.offset = desc[1]
-    ret.hash = desc[2]
-    ret.branch = longBranch != null ? org.eclipse.jgit.lib.Repository.shortenRefName(longBranch) : null
-    ret.commit = org.eclipse.jgit.lib.ObjectId.toString(head.objectId)
-    ret.abbreviatedId = head.objectId.abbreviate(8).name()
-    
-    return ret
-}
-
-def gitVersion() {
-    def info = gitInfo(rootProject.file('.'))
-    def branch = info.branch
-    if (branch != null && branch.startsWith('pulls/'))
-        branch = 'pr' + branch.rsplit('/', 1)[1]
-    if (branch in [null, 'master', 'HEAD'])
-        return "${info.tag}.${info.offset}".toString()
-    return "${info.tag}.${info.offset}-${branch}".toString()
-}
-
