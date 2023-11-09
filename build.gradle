@@ -11,6 +11,7 @@ plugins {
     id 'eclipse'
     id 'org.cadixdev.licenser' version '0.6.1'
     id 'net.minecraftforge.gradleutils' version '2.+'
+    id 'dev.gradleplugins.gradle-plugin-development' version '1.6.10'
 }
 
 group = 'net.minecraftforge'
@@ -43,7 +44,7 @@ dependencies {
     sharedImplementation sourceSets.api.output
 
     gradlecompImplementation sourceSets.shared.output
-    gradlecompImplementation gradleApi()
+    gradlecompImplementation gradleApi('8.4')
     gradlecompImplementation 'com.google.guava:guava:30.1-jre'
     gradlecompImplementation 'net.minecraftforge:unsafe:0.2.0'
 
@@ -75,9 +76,39 @@ tasks.register('transformJar', JarTransformationTask) {
                 it instanceof MethodInsnNode && it.owner == 'org/gradle/api/internal/artifacts/repositories/AbstractArtifactRepository' && it.name == '<init>'
             }?.tap { (it as MethodInsnNode).desc = '(Lorg/gradle/api/model/ObjectFactory;)V' }
         }
+
+        it.methods.find {
+            it.name == 'getDescriptorGradle8_1Below' && it.desc == '()Lorg/gradle/api/internal/artifacts/repositories/descriptor/RepositoryDescriptor;'
+        }.tap {
+            it.instructions.find {
+                it instanceof InsnNode && it.opcode == Opcodes.ACONST_NULL
+            }.tap(it.instructions.&remove)
+            it.instructions.find {
+                it instanceof MethodInsnNode && it.owner == 'org/gradle/api/internal/artifacts/repositories/descriptor/FlatDirRepositoryDescriptor' && it.name == '<init>'
+            }.tap { (it as MethodInsnNode).desc = '(Ljava/lang/String;Ljava/util/Collection;)V' }
+        }
     }
 
     addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1') { clazz ->
+        // Gradle [???,8.2)
+        {
+            clazz.methods.find {
+                it.name == 'getMetadataGradle8_1Below' && it.desc == '(Lorg/gradle/internal/resolve/result/BuildableModuleComponentMetaDataResolveResult;)Lorg/gradle/internal/component/external/model/ModuleComponentResolveMetadata;'
+            }.tap {
+                it.instructions.find {
+                    it instanceof MethodInsnNode && it.owner == 'org/gradle/internal/resolve/result/BuildableModuleComponentMetaDataResolveResult' && it.name == 'getMetaData'
+                }.tap { (it as MethodInsnNode).desc = '()Lorg/gradle/internal/component/external/model/ModuleComponentResolveMetadata;' }
+            }
+
+            clazz.methods.find {
+                it.name == 'setResultResolvedGradle8_1Below' && it.desc == '(Lorg/gradle/internal/resolve/result/BuildableModuleComponentMetaDataResolveResult;Lorg/gradle/internal/component/external/model/ModuleComponentResolveMetadata;)V'
+            }.tap {
+                it.instructions.find {
+                    it instanceof MethodInsnNode && it.owner == 'org/gradle/internal/resolve/result/BuildableModuleComponentMetaDataResolveResult' && it.name == 'resolved'
+                }.tap { (it as MethodInsnNode).desc = '(Lorg/gradle/internal/component/external/model/ModuleComponentResolveMetadata;)V' }
+            }
+        }
+
         // Gradle [6.1,7.6)
         {
             final method = clazz.visitMethod(Opcodes.ACC_PUBLIC, 'resolveArtifact', '(Lorg/gradle/internal/component/model/ComponentArtifactMetadata;Lorg/gradle/internal/component/model/ModuleSources;Lorg/gradle/internal/resolve/result/BuildableArtifactResolveResult;)V', null, new String[]{})
@@ -172,25 +203,26 @@ license {
     header = file("$rootDir/LICENSE-header.txt")
 }
 
-configurations.runtimeElements.outgoing {
-    it.artifacts.removeIf {
-        (it.classifier == null || it.classifier.blank) && it.extension == 'jar' // Remove the jar artifact as we want to replace it with the transformed one
-    }
-    it.artifact(tasks.named('transformJar').flatMap { it.outputFile }) {
-        classifier = null
+[configurations.runtimeElements, configurations.apiElements, configurations.sourcesElements].each {
+    it.outgoing {
+        it.artifacts.removeIf {
+            (it.classifier == null || it.classifier.blank) && it.extension == 'jar' // Remove the jar artifact as we want to replace it with the transformed one
+        }
+        it.artifact(tasks.named('transformJar').flatMap { it.outputFile }) {
+            classifier = null
+        }
     }
 }
 
-final transformed = project.objects.newInstance(SoftwareComponentFactoryGrabber).softwareComponentFactory.adhoc('transformed')
-project.components.add(transformed)
-transformed.addVariantsFromConfiguration(configurations.runtimeElements) {
-    mapToMavenScope 'runtime'
+configurations.sourcesElements.outgoing {
+    it.artifacts.removeIf {
+        it.classifier != 'sources'
+    }
 }
 
 publishing {
     publications.create("mavenJava", MavenPublication) {
-        from components.transformed
-        artifact sourcesJar
+        from components.java
         pom {
             groupId = project.group
             version = project.version
