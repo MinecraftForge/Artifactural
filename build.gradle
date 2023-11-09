@@ -4,6 +4,7 @@ import org.objectweb.asm.Label
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.InsnNode
 import org.objectweb.asm.tree.MethodInsnNode
+import net.minecraftforge.gradleutils.PomUtils
 
 plugins {
     id 'java-library'
@@ -15,21 +16,21 @@ plugins {
 }
 
 group = 'net.minecraftforge'
-
 version = gradleutils.getTagOffsetVersion()
-println('Version: ' + version + ' Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
+println "Version: $version"
+println "Java: ${System.getProperty 'java.version'} JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}) Arch: ${System.getProperty 'os.arch'}"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+    withSourcesJar()
+}
 
 sourceSets {
     api
     shared
     gradlecomp
-}
-
-repositories {
-    mavenCentral()
-    maven {
-        url = 'https://maven.minecraftforge.net'
-    }
 }
 
 configurations {
@@ -38,6 +39,11 @@ configurations {
 
     implementation.extendsFrom sharedImplementation
     implementation.extendsFrom gradlecompImplementation
+}
+
+repositories {
+    mavenCentral()
+    maven gradleutils.forgeMaven
 }
 
 dependencies {
@@ -57,11 +63,6 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'utf-8'
     options.deprecation = true
-}
-
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(8)
-    withSourcesJar()
 }
 
 tasks.register('transformJar', JarTransformationTask) {
@@ -186,29 +187,29 @@ tasks.register('transformJar', JarTransformationTask) {
     }
 }
 
-jar {
+tasks.named('jar', Jar).configure {
     from sourceSets.api.output
     from sourceSets.shared.output
     from sourceSets.gradlecomp.output
     finalizedBy 'transformJar'
 }
 
-sourcesJar {
+tasks.named('sourcesJar', Jar).configure {
     from sourceSets.api.allSource
     from sourceSets.shared.allSource
     from sourceSets.gradlecomp.allSource
 }
 
 license {
-    header = file("$rootDir/LICENSE-header.txt")
+    header = file("$rootDir/header.txt")
 }
 
-[configurations.runtimeElements, configurations.apiElements, configurations.sourcesElements].each {
-    it.outgoing {
-        it.artifacts.removeIf {
-            (it.classifier == null || it.classifier.blank) && it.extension == 'jar' // Remove the jar artifact as we want to replace it with the transformed one
+[configurations.runtimeElements, configurations.apiElements, configurations.sourcesElements].each { config ->
+    config.outgoing { publications ->
+        publications.artifacts.removeIf {
+            (it.classifier === null || it.classifier.blank) && it.extension == 'jar' // Remove the jar artifact as we want to replace it with the transformed one
         }
-        it.artifact(tasks.named('transformJar').flatMap { it.outputFile }) {
+        publications.artifact(tasks.named('transformJar').flatMap { it.outputFile }) {
             classifier = null
         }
     }
@@ -221,42 +222,29 @@ configurations.sourcesElements.outgoing {
 }
 
 publishing {
-    publications.create("mavenJava", MavenPublication) {
+    publications.register('mavenJava', MavenPublication) {
         from components.java
+
         pom {
             groupId = project.group
             version = project.version
-            artifactId = project.archivesBaseName
-            name = project.archivesBaseName
+            artifactId = 'artifactural'
             packaging = 'jar'
+            name = 'Artifactural'
             description = 'A Gradle artifact processing and management tool'
             url = 'https://github.com/MinecraftForge/Artifactural/'
 
-            scm {
-                url = 'https://github.com/MinecraftForge/Artifactural/'
-                connection = 'scm:git:git://github.com/MinecraftForge/Artifactural.git'
-                developerConnection = 'scm:git:git@github.com:MinecraftForge/Artifactural.git'
-            }
-            issueManagement {
-                system = 'github'
-                url = 'https://github.com/MinecraftForge/Artifactural/issues'
-            }
-            licenses {
-                license {
-                    name = 'LGPL-2.1'
-                    url = 'https://www.gnu.org/licenses/lgpl-2.1.txt'
-                    distribution = 'repo'
-                }
-            }
+            PomUtils.setGitHubDetails(pom, 'Artifactural')
+
+            license PomUtils.Licenses.LGPLv2_1
         }
     }
+
     repositories {
         maven gradleutils.getPublishingForgeMaven()
     }
 }
 
 changelog {
-    fromTag('3.0')
+    fromTag '3.0'
 }
-
-
