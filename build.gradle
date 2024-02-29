@@ -4,26 +4,23 @@ import org.objectweb.asm.Label
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.tree.InsnNode
 import org.objectweb.asm.tree.MethodInsnNode
-import net.minecraftforge.gradleutils.PomUtils
 
 plugins {
     id 'java-library'
     id 'maven-publish'
     id 'eclipse'
-    id 'org.cadixdev.licenser' version '0.6.1'
-    id 'net.minecraftforge.gradleutils' version '2.+'
+    id 'net.minecraftforge.gradleutils' version '[2.3,2.4]'
+    id 'net.minecraftforge.licenser' version '1.0.1'
     id 'dev.gradleplugins.gradle-plugin-development' version '1.6.10'
 }
 
 group = 'net.minecraftforge'
-version = gradleutils.getTagOffsetVersion()
+version = gradleutils.tagOffsetVersion
 println "Version: $version"
 println "Java: ${System.getProperty 'java.version'} JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}) Arch: ${System.getProperty 'os.arch'}"
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(8)
-    }
+    toolchain.languageVersion = JavaLanguageVersion.of(8)
     withSourcesJar()
 }
 
@@ -234,17 +231,17 @@ publishing {
             description = 'A Gradle artifact processing and management tool'
             url = 'https://github.com/MinecraftForge/Artifactural/'
 
-            PomUtils.setGitHubDetails(pom, 'Artifactural')
+            gradleutils.pom.setGitHubDetails(pom, 'Artifactural')
 
-            license PomUtils.Licenses.LGPLv2_1
+            license gradleutils.pom.Licenses.LGPLv2_1
         }
     }
 
     repositories {
-        maven gradleutils.getPublishingForgeMaven()
+        maven gradleutils.publishingForgeMaven
     }
 }
 
 changelog {
-    fromTag '3.0'
+    from '3.0'
 }

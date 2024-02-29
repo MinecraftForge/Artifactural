@@ -146,6 +146,11 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     }
 
     private static VersionParser getVersionParser(DefaultMavenLocalArtifactRepository maven) {
+        if (GradleVersion.current().compareTo(GradleVersion.version("8.7-rc-1")) >= 0) {
+            // 8.7 RC 1 Removed the versionParser field directly, so find it from AbstractArtifactRepository
+            // https://github.com/gradle/gradle/commit/4604475e2237910ea0a1b697f4e7d5d0d4c74431
+            return ReflectionUtils.get(maven, "repositoryContentDescriptor.versionParser");
+        }
         return ReflectionUtils.get(maven, "versionParser");
     }
 
