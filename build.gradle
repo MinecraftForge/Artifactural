@@ -2,8 +2,7 @@ import net.minecraftforge.artifactural.buildscript.JarTransformationTask
 import net.minecraftforge.artifactural.buildscript.SoftwareComponentFactoryGrabber
 import org.objectweb.asm.Label
 import org.objectweb.asm.Opcodes
-import org.objectweb.asm.tree.InsnNode
-import org.objectweb.asm.tree.MethodInsnNode
+import org.objectweb.asm.tree.*
 
 plugins {
     id 'java-library'
@@ -88,6 +87,23 @@ tasks.register('transformJar', JarTransformationTask) {
     }
 
     addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1') { clazz ->
+        // Gradle [8.9) - resolveArtifactsWithType changed parameter types
+        {
+            final mtd = 'resolveArtifactsWithType'
+            final desc = '(Lorg/gradle/internal/component/model/ComponentArtifactResolveMetadata;Lorg/gradle/api/internal/component/ArtifactType;Lorg/gradle/internal/resolve/result/BuildableArtifactSetResolveResult;)V'
+            clazz.methods.find { it.name == mtd && it.desc == desc }.tap {
+                
+                // null -> first parameter
+                final aconst_null = it.instructions.find { it.opcode == Opcodes.ACONST_NULL }
+                it.instructions.insertBefore(aconst_null, new VarInsnNode(Opcodes.ALOAD, 1))
+                it.instructions.remove(aconst_null)
+                
+                // Change target desc
+                final invoke = it.instructions.find { it instanceof MethodInsnNode && it.name == mtd }
+                invoke.desc = desc
+            }
+        }
+    
         // Gradle [???,8.2)
         {
             clazz.methods.find {

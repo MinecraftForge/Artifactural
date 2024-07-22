@@ -53,6 +53,7 @@ import org.gradle.internal.component.external.model.ModuleComponentResolveMetada
 import org.gradle.internal.component.external.model.ModuleDependencyMetadata;
 import org.gradle.internal.component.external.model.MutableModuleComponentResolveMetadata;
 import org.gradle.internal.component.model.ComponentArtifactMetadata;
+import org.gradle.internal.component.model.ComponentArtifactResolveMetadata;
 import org.gradle.internal.component.model.ComponentOverrideMetadata;
 import org.gradle.internal.component.model.ComponentResolveMetadata;
 import org.gradle.internal.component.model.ModuleSources;
@@ -160,6 +161,7 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     }
 
     @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public ConfiguredModuleComponentRepository createResolver() {
         MavenResolver resolver = (MavenResolver)local.createResolver();
 
@@ -176,7 +178,6 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
         ReflectionUtils.alter(resolver, "cachingResourceAccessor.this$0.repository", prev -> repo);
         ReflectionUtils.alter(resolver, "cachingResourceAccessor.delegate.delegate", prev -> repo);
 
-        //noinspection unchecked,rawtypes
         return new ConfiguredModuleComponentRepository() {
             private final ModuleComponentRepositoryAccess local = wrap(resolver.getLocalAccess());
             private final ModuleComponentRepositoryAccess remote = wrap(resolver.getRemoteAccess());
@@ -197,11 +198,9 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
             }
 
             private ModuleComponentRepositoryAccess wrap(ModuleComponentRepositoryAccess delegate) {
-                //noinspection rawtypes
                 return new ModuleComponentRepositoryAccess() {
                     @Override
                     public void resolveComponentMetaData(ModuleComponentIdentifier moduleComponentIdentifier, ComponentOverrideMetadata requestMetaData, BuildableModuleComponentMetaDataResolveResult result) {
-                        //noinspection unchecked
                         delegate.resolveComponentMetaData(moduleComponentIdentifier, requestMetaData, result);
                         if (result.getState() == BuildableModuleComponentMetaDataResolveResult.State.Resolved) {
                             ModuleComponentResolveMetadata meta = getMetadata(result);
@@ -222,14 +221,12 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                         }
                     }
 
-                    @SuppressWarnings("unchecked")
                     private void setResultResolvedGradle8_2Above(BuildableModuleComponentMetaDataResolveResult result, ModuleComponentResolveMetadata meta) {
                         result.resolved(meta);
                     }
 
                     // DO NOT TOUCH
                     // This method is modified by ASM in build.gradle
-                    @SuppressWarnings("unchecked")
                     private void setResultResolvedGradle8_1Below(BuildableModuleComponentMetaDataResolveResult result, ModuleComponentResolveMetadata meta) {
                         // Descriptor of resolved is changed to (Lorg/gradle/internal/component/external/model/ModuleComponentResolveMetadata;)V
                         result.resolved(meta);
@@ -262,6 +259,15 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                     @Override
                     public void resolveArtifactsWithType(ComponentResolveMetadata component, ArtifactType artifactType, BuildableArtifactSetResolveResult result) {
                         delegate.resolveArtifactsWithType(component, artifactType, result);
+                    }
+
+                    // DO NOT TOUCH
+                    // Gradle 8.9 changed the first argument from ComponentResolveMetadata to ComponentArtifactResolveMetadata
+                    // https://github.com/gradle/gradle/commit/90f772b5d4b5599653d435e9f10d364a5599608d
+                    @SuppressWarnings("unused")
+                    public void resolveArtifactsWithType(ComponentArtifactResolveMetadata component, ArtifactType artifactType, BuildableArtifactSetResolveResult result) {
+                        //ASM In build.gradle changes the first parameter and method descriptor
+                        delegate.resolveArtifactsWithType(null/*component*/, artifactType, result);
                     }
 
                     @Override
