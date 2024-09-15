@@ -17,12 +17,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-package net.minecraftforge.artifactural.api.cache;
+package net.minecraftforge.artifactural.api.artifact;
 
-import net.minecraftforge.artifactural.api.artifact.Artifact;
+public interface ArtifactAttribute<T> {
+    static <T> ArtifactAttribute<T> create(String name, Class<T> type) {
+        return new SimpleArtifactAttribute<>(name, type);
+    }
 
-public interface ArtifactCache {
+    String getName();
 
-    Artifact.Cached store(Artifact artifact);
-
+    Class<T> getType();
 }

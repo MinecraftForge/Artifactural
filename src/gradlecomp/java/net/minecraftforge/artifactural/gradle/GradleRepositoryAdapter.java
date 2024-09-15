@@ -1,6 +1,6 @@
 /*
  * Artifactural
- * Copyright (c) 2018-2021.
+ * Copyright (c) 2018-2024.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,9 +24,11 @@ import net.minecraftforge.artifactural.api.artifact.ArtifactIdentifier;
 import net.minecraftforge.artifactural.api.artifact.MissingArtifactException;
 import net.minecraftforge.artifactural.api.repository.Repository;
 import net.minecraftforge.artifactural.base.artifact.SimpleArtifactIdentifier;
+import net.minecraftforge.artifactural.base.artifact.SimpleAttributeCollection;
 import net.minecraftforge.artifactural.base.cache.LocatedArtifactCache;
 
-import org.gradle.api.artifacts.ComponentMetadataSupplierDetails;
+import org.gradle.api.Project;
+import org.gradle.api.artifacts.*;
 import org.gradle.api.artifacts.component.ComponentArtifactIdentifier;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
@@ -80,8 +82,10 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class GradleRepositoryAdapter extends AbstractArtifactRepository implements ResolutionAwareRepository {
 
@@ -89,8 +93,9 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
             "^(?<group>\\S+(?:/\\S+)*)/(?<name>\\S+)/(?<version>\\S+)/" +
                     "\\2-\\3(?:-(?<classifier>[^.\\s]+))?\\.(?<extension>\\S+)$");
 
-    public static GradleRepositoryAdapter add(RepositoryHandler handler, String name, File local, Repository repository) {
-        BaseRepositoryFactory factory = ReflectionUtils.get(handler, "repositoryFactory"); // We reflect here and create it manually so it DOESN'T get attached.
+    public static GradleRepositoryAdapter add(Project project, String name, File local, Repository repository) {
+        RepositoryHandler repositoryHandler = project.getRepositories();
+        BaseRepositoryFactory factory = ReflectionUtils.get(repositoryHandler, "repositoryFactory"); // We reflect here and create it manually so it DOESN'T get attached.
         DefaultMavenLocalArtifactRepository maven = (DefaultMavenLocalArtifactRepository)factory.createMavenLocalRepository(); // We use maven local because it bypasses the caching and coping to .m2
         maven.setUrl(local);
         maven.setName(name);
@@ -103,17 +108,18 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
 
         if (GradleVersion.current().compareTo(GradleVersion.version("7.6")) >= 0) {
             // If we are on gradle 7.6+ we want to use the super constructor with 2 arguments (with the VersionParser)
-            repo = new GradleRepositoryAdapter(repository, maven, getVersionParser(maven));
+            repo = new GradleRepositoryAdapter(project.getConfigurations(), repository, maven, getVersionParser(maven));
         } else {
             // If we are on gradle 4.10 - 7.5 we use the super constructor with only the ObjectFactory parameter
-            repo = new GradleRepositoryAdapter(repository, maven);
+            repo = new GradleRepositoryAdapter(project.getConfigurations(), repository, maven);
         }
 
         repo.setName(name);
-        handler.add(repo);
+        repositoryHandler.add(repo);
         return repo;
     }
 
+    private final ConfigurationContainer configurations;
     private final Repository repository;
     private final DefaultMavenLocalArtifactRepository local;
     private final String root;
@@ -124,9 +130,10 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     // DO NOT change this without modifying 'build.gradle'
     // This constructor is used on Gradle 7.5.* and below
     @Deprecated // TODO - remove this constructor when we can break ABI compatibility
-    private GradleRepositoryAdapter(Repository repository, DefaultMavenLocalArtifactRepository local) {
+    private GradleRepositoryAdapter(ConfigurationContainer configurations, Repository repository, DefaultMavenLocalArtifactRepository local) {
         // This is replaced with a call to 'super(getObjectFactory(local))'
         super(getObjectFactory(local), null);
+        this.configurations = configurations;
         this.repository = repository;
         this.local = local;
         this.root = cleanRoot(local.getUrl());
@@ -134,8 +141,9 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     }
 
     // This constructor is used on Gradle 7.6 and above
-    private GradleRepositoryAdapter(Repository repository, DefaultMavenLocalArtifactRepository local, VersionParser versionParser) {
+    private GradleRepositoryAdapter(ConfigurationContainer configurations, Repository repository, DefaultMavenLocalArtifactRepository local, VersionParser versionParser) {
         super(getObjectFactory(local), versionParser);
+        this.configurations = configurations;
         this.repository = repository;
         this.local = local;
         this.root = cleanRoot(local.getUrl());
@@ -163,7 +171,7 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
     @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
     public ConfiguredModuleComponentRepository createResolver() {
-        MavenResolver resolver = (MavenResolver)local.createResolver();
+        MavenResolver resolver = local.createResolver();
 
         GeneratingFileResourceRepository  repo = new GeneratingFileResourceRepository();
         ReflectionUtils.alter(resolver, "repository", prev -> repo);  // ExternalResourceResolver.repository
@@ -364,14 +372,44 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                 debug("  Relative: " + relative);
                 Matcher matcher = URL_PATTERN.matcher(relative);
                 if (matcher.matches()) {
-                    ArtifactIdentifier identifier = new SimpleArtifactIdentifier(
-                        matcher.group("group").replace('/', '.'),
-                        matcher.group("name"),
-                        matcher.group("version"),
-                        matcher.group("classifier"),
-                        matcher.group("extension"));
-                    Artifact artifact = repository.getArtifact(identifier);
-                    return wrap(artifact, identifier);
+                    String group = matcher.group("group").replace('/', '.');
+                    String name = matcher.group("name");
+                    String version = matcher.group("version");
+                    String classifier = matcher.group("classifier");
+                    String extension = matcher.group("extension");
+
+                    // Find possible matching dependency candidates
+                    Set<ExternalModuleDependency> candidates = configurations.stream()
+                        .flatMap(config -> config.getIncoming().getDependencies().stream())
+                        .filter(dependency -> {
+                            if(!(dependency instanceof ExternalModuleDependency)) {
+                                return false;
+                            }
+                            String currentGroup = dependency.getGroup();
+                            if(currentGroup == null || !currentGroup.equals(group) || !dependency.getName().equals(name)) {
+                                return false;
+                            }
+                            String currentVersion = dependency.getVersion();
+                            return currentVersion != null && currentVersion.equals(version);
+                        })
+                        .map(ExternalModuleDependency.class::cast)
+                        .collect(Collectors.toSet());
+
+                    for(ExternalModuleDependency candidate : candidates) {
+                        SimpleArtifactIdentifier identifier = new SimpleArtifactIdentifier(
+                            group,
+                            name,
+                            version,
+                            classifier,
+                            extension,
+                            new GradleAttributeCollection(candidate.getAttributes()));
+                        Artifact artifact = repository.getArtifact(identifier);
+                        if(artifact == Artifact.none()) {
+                            continue;
+                        }
+                        return wrap(artifact, identifier);
+                    }
+                    return new LocalFileStandInExternalResource(new File(path), fileSystem);
                 } else if (relative.endsWith("maven-metadata.xml")) {
                     String tmp = relative.substring(0, relative.length() - "maven-metadata.xml".length() - 1);
                     int idx = tmp.lastIndexOf('/');

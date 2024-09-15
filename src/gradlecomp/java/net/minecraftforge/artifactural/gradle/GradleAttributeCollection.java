@@ -17,12 +17,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-package net.minecraftforge.artifactural.api.cache;
+package net.minecraftforge.artifactural.gradle;
 
-import net.minecraftforge.artifactural.api.artifact.Artifact;
+import net.minecraftforge.artifactural.api.artifact.ArtifactAttribute;
+import net.minecraftforge.artifactural.base.artifact.SimpleAttributeCollection;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.attributes.AttributeContainer;
 
-public interface ArtifactCache {
-
-    Artifact.Cached store(Artifact artifact);
-
+public class GradleAttributeCollection extends SimpleAttributeCollection {
+    public GradleAttributeCollection(final AttributeContainer container) {
+        for (Attribute<?> attribute : container.keySet()) {
+            values.put(ArtifactAttribute.create(attribute.getName(), attribute.getType()), container.getAttribute(attribute));
+        }
+    }
 }

@@ -17,12 +17,19 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-package net.minecraftforge.artifactural.api.cache;
+package net.minecraftforge.artifactural.api.artifact;
 
-import net.minecraftforge.artifactural.api.artifact.Artifact;
+import java.util.Map.Entry;
+import java.util.Set;
 
-public interface ArtifactCache {
+public interface ArtifactAttributeCollection extends Iterable<Entry<ArtifactAttribute<?>, Object>> {
+    static ArtifactAttributeCollection empty() {
+        return Internal.NO_ATTRIBUTES;
+    }
 
-    Artifact.Cached store(Artifact artifact);
+    <T> T with(ArtifactAttribute<T> attribute, T value);
 
+    <T> T get(ArtifactAttribute<T> key);
+
+    Set<ArtifactAttribute<?>> keys();
 }

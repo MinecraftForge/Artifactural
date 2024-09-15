@@ -17,12 +17,24 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-package net.minecraftforge.artifactural.api.cache;
+package net.minecraftforge.artifactural.api.artifact;
 
-import net.minecraftforge.artifactural.api.artifact.Artifact;
+final class SimpleArtifactAttribute<T> implements ArtifactAttribute<T> {
+    private final String name;
+    private final Class<T> type;
 
-public interface ArtifactCache {
+    public SimpleArtifactAttribute(final String name, final Class<T> type) {
+        this.name = name;
+        this.type = type;
+    }
 
-    Artifact.Cached store(Artifact artifact);
+    @Override
+    public String getName() {
+        return name;
+    }
 
+    @Override
+    public Class<T> getType() {
+        return type;
+    }
 }
