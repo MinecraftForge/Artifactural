@@ -64,7 +64,7 @@ tasks.withType(JavaCompile).configureEach {
 tasks.register('transformJar', JarTransformationTask) {
     addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter') {
         it.methods.find {
-            it.name == '<init>' && it.desc == '(Lnet/minecraftforge/artifactural/api/repository/Repository;Lorg/gradle/api/internal/artifacts/repositories/DefaultMavenLocalArtifactRepository;)V'
+            it.name == '<init>' && it.desc == '(Lorg/gradle/api/artifacts/ConfigurationContainer;Lnet/minecraftforge/artifactural/api/repository/Repository;Lorg/gradle/api/internal/artifacts/repositories/DefaultMavenLocalArtifactRepository;)V'
         }?.tap {
             it.instructions.find {
                 it instanceof InsnNode && it.opcode == Opcodes.ACONST_NULL
@@ -258,6 +258,6 @@ publishing {
     }
 }
 
-changelog {
-    from '3.0'
-}
+//changelog {
+//    from '3.0'
+//}

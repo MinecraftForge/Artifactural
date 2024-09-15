@@ -1,6 +1,6 @@
 /*
  * Artifactural
- * Copyright (c) 2018-2021.
+ * Copyright (c) 2018-2024.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -21,11 +21,38 @@ package net.minecraftforge.artifactural.api.artifact;
 
 import java.io.File;
 import java.io.InputStream;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 import net.minecraftforge.artifactural.api.cache.ArtifactCache;
 import net.minecraftforge.artifactural.api.transform.ArtifactTransformer;
 
 final class Internal {
+
+    static final ArtifactAttributeCollection NO_ATTRIBUTES = new ArtifactAttributeCollection() {
+        @Override
+        public <T> T with(ArtifactAttribute<T> attribute, T value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public <T> T get(ArtifactAttribute<T> key) {
+            return null;
+        }
+
+        @Override
+        public Set<ArtifactAttribute<?>> keys() {
+            return Collections.emptySet();
+        }
+
+        @Override
+        public Iterator<Entry<ArtifactAttribute<?>, Object>> iterator() {
+            return Collections.<Entry<ArtifactAttribute<?>, Object>>emptyList().iterator();
+        }
+    };
 
     static final ArtifactIdentifier NO_IDENTIFIER = new ArtifactIdentifier() {
 
@@ -59,6 +86,10 @@ final class Internal {
             return "NO_IDENTIFIER";
         }
 
+        @Override
+        public ArtifactAttributeCollection getAttributes() {
+            return NO_ATTRIBUTES;
+        }
     };
 
     static final Artifact NO_ARTIFACT = new Artifact.Cached() {
