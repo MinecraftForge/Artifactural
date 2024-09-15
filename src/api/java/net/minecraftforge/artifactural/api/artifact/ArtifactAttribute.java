@@ -20,6 +20,10 @@
 package net.minecraftforge.artifactural.api.artifact;
 
 public interface ArtifactAttribute<T> {
+    static <T> ArtifactAttribute<T> create(String name, Class<T> type) {
+        return new SimpleArtifactAttribute<>(name, type);
+    }
+
     String getName();
 
     Class<T> getType();

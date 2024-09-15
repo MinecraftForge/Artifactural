@@ -19,7 +19,7 @@
 
 package net.minecraftforge.artifactural.gradle;
 
-import net.minecraftforge.artifactural.base.artifact.SimpleArtifactAttribute;
+import net.minecraftforge.artifactural.api.artifact.ArtifactAttribute;
 import net.minecraftforge.artifactural.base.artifact.SimpleAttributeCollection;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
@@ -27,7 +27,7 @@ import org.gradle.api.attributes.AttributeContainer;
 public class GradleAttributeCollection extends SimpleAttributeCollection {
     public GradleAttributeCollection(final AttributeContainer container) {
         for (Attribute<?> attribute : container.keySet()) {
-            values.put(new SimpleArtifactAttribute<>(attribute.getName(), attribute.getType()), container.getAttribute(attribute));
+            values.put(ArtifactAttribute.create(attribute.getName(), attribute.getType()), container.getAttribute(attribute));
         }
     }
 }
