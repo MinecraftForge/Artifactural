@@ -87,6 +87,23 @@ tasks.register('transformJar', JarTransformationTask) {
     }
 
     addTransformer('net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1') { clazz ->
+        // Gradle [8.13) - listModuleVersions add delegate call
+        {
+            final mtd = 'listModuleVersions'
+            final desc = '(Lorg/gradle/api/artifacts/component/ModuleComponentSelector;Lorg/gradle/internal/component/model/ComponentOverrideMetadata;Lorg/gradle/internal/resolve/result/BuildableModuleVersionListingResolveResult;)V'
+
+            clazz.methods.find { it.name == mtd && it.desc == desc }?.tap {
+                it.instructions.clear()
+                it.instructions.add(new VarInsnNode(Opcodes.ALOAD, 0))
+                it.instructions.add(new FieldInsnNode(Opcodes.GETFIELD, 'net/minecraftforge/artifactural/gradle/GradleRepositoryAdapter$1$1', 'val$delegate', 'Lorg/gradle/api/internal/artifacts/ivyservice/ivyresolve/ModuleComponentRepositoryAccess;'))
+                it.instructions.add(new VarInsnNode(Opcodes.ALOAD, 1))
+                it.instructions.add(new VarInsnNode(Opcodes.ALOAD, 2))
+                it.instructions.add(new VarInsnNode(Opcodes.ALOAD, 3))
+                it.instructions.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE, 'org/gradle/api/internal/artifacts/ivyservice/ivyresolve/ModuleComponentRepositoryAccess', 'listModuleVersions', '(Lorg/gradle/api/artifacts/component/ModuleComponentSelector;Lorg/gradle/internal/component/model/ComponentOverrideMetadata;Lorg/gradle/internal/resolve/result/BuildableModuleVersionListingResolveResult;)V'))
+                it.instructions.add(new InsnNode(Opcodes.RETURN))
+            }
+        }
+
         // Gradle [8.9) - resolveArtifactsWithType changed parameter types
         {
             final mtd = 'resolveArtifactsWithType'

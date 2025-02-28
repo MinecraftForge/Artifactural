@@ -29,6 +29,7 @@ import net.minecraftforge.artifactural.base.cache.LocatedArtifactCache;
 import org.gradle.api.artifacts.ComponentMetadataSupplierDetails;
 import org.gradle.api.artifacts.component.ComponentArtifactIdentifier;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
+import org.gradle.api.artifacts.component.ModuleComponentSelector;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.internal.artifacts.BaseRepositoryFactory;
 import org.gradle.api.internal.artifacts.ivyservice.ivyresolve.ComponentResolvers;
@@ -254,6 +255,14 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
                     @Override
                     public void listModuleVersions(ModuleDependencyMetadata dependency, BuildableModuleVersionListingResolveResult result) {
                         delegate.listModuleVersions(dependency, result);
+                    }
+
+                    // DO NOT TOUCH
+                    // Gradle 8.13 changed the first argument from ModuleDependencyMetadata to ModuleComponentSelector and added a new argument ComponentOverrideMetadata
+                    // https://github.com/gradle/gradle/commit/7f120d813df21b0d24f403180629f51ba0f8ee4c
+                    @SuppressWarnings("unused")
+                    public void listModuleVersions(ModuleComponentSelector selector, ComponentOverrideMetadata overrideMetadata, BuildableModuleVersionListingResolveResult result) {
+                        //ASM in build.gradle adds the delegate call
                     }
 
                     @Override
