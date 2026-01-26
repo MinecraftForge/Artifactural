@@ -190,6 +190,12 @@ public class GradleRepositoryAdapter extends AbstractArtifactRepository implemen
             @Override public InstantiatingAction<ComponentMetadataSupplierDetails> getComponentMetadataSupplier() { return resolver.getComponentMetadataSupplier(); }
             @Override public boolean isDynamicResolveMode() { return resolver.isDynamicResolveMode(); }
             @Override public boolean isLocal() { return resolver.isLocal(); }
+            /* Added in 8.14.4 https://github.com/gradle/gradle/commit/31e256d05d9595a2a4dac9df740bee879e557b82 */
+            @SuppressWarnings("unused")
+            public boolean isContinueOnConnectionFailure() { return false; }
+            /* Added in 8.14.4 https://github.com/gradle/gradle/commit/e5707d0d8fce3d768c9c489004700d78eab1773a */
+            @SuppressWarnings("unused")
+            public boolean isRepositoryDisabled() { return false; }
 
             @Override
             public void setComponentResolvers(ComponentResolvers resolver) { }
