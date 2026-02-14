@@ -1,6 +1,6 @@
 /*
  * Artifactural
- * Copyright (c) 2018-2021.
+ * Copyright (c) 2018-2024.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,10 +19,7 @@
 
 package net.minecraftforge.artifactural.base.artifact;
 
-import net.minecraftforge.artifactural.api.artifact.Artifact;
-import net.minecraftforge.artifactural.api.artifact.ArtifactIdentifier;
-import net.minecraftforge.artifactural.api.artifact.ArtifactMetadata;
-import net.minecraftforge.artifactural.api.artifact.ArtifactType;
+import net.minecraftforge.artifactural.api.artifact.*;
 import net.minecraftforge.artifactural.api.cache.ArtifactCache;
 import net.minecraftforge.artifactural.api.transform.ArtifactTransformer;
 
@@ -68,5 +65,4 @@ public abstract class ArtifactBase implements Artifact {
     public String toString() {
         return getClass().getSimpleName() + "(" + identifier + ", " + type +", " + metadata;
     }
-
 }

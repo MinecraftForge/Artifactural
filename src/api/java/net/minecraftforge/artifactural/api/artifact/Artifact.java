@@ -1,6 +1,6 @@
 /*
  * Artifactural
- * Copyright (c) 2018-2021.
+ * Copyright (c) 2018-2024.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,12 +19,12 @@
 
 package net.minecraftforge.artifactural.api.artifact;
 
+import net.minecraftforge.artifactural.api.cache.ArtifactCache;
+import net.minecraftforge.artifactural.api.transform.ArtifactTransformer;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-
-import net.minecraftforge.artifactural.api.cache.ArtifactCache;
-import net.minecraftforge.artifactural.api.transform.ArtifactTransformer;
 
 public interface Artifact {
 
@@ -46,6 +46,10 @@ public interface Artifact {
 
     default Artifact.Cached optionallyCache(ArtifactCache cache) {
         return this instanceof Artifact.Cached ? (Artifact.Cached) this : cache(cache);
+    }
+
+    default ArtifactAttributeCollection getAttributes() {
+        return getIdentifier().getAttributes();
     }
 
     boolean isPresent();

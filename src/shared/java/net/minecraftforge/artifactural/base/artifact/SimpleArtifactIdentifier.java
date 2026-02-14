@@ -1,6 +1,6 @@
 /*
  * Artifactural
- * Copyright (c) 2018-2021.
+ * Copyright (c) 2018-2024.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,18 +19,26 @@
 
 package net.minecraftforge.artifactural.base.artifact;
 
+import net.minecraftforge.artifactural.api.artifact.ArtifactAttributeCollection;
 import net.minecraftforge.artifactural.api.artifact.ArtifactIdentifier;
 
 public class SimpleArtifactIdentifier implements ArtifactIdentifier {
 
     private final String group, name, version, classifier, extension;
+    private final ArtifactAttributeCollection attributes;
 
-    public SimpleArtifactIdentifier(String group, String name, String version, String classifier, String extension) {
+    public SimpleArtifactIdentifier(String group,
+                                    String name,
+                                    String version,
+                                    String classifier,
+                                    String extension,
+                                    ArtifactAttributeCollection attributes) {
         this.group = group;
         this.name = name;
         this.version = version;
         this.classifier = classifier;
         this.extension = extension;
+        this.attributes = attributes;
     }
 
     @Override
@@ -56,6 +64,11 @@ public class SimpleArtifactIdentifier implements ArtifactIdentifier {
     @Override
     public String getExtension() {
         return extension;
+    }
+
+    @Override
+    public ArtifactAttributeCollection getAttributes() {
+        return attributes;
     }
 
     @Override

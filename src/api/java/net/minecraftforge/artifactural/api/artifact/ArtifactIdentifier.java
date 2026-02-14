@@ -1,6 +1,6 @@
 /*
  * Artifactural
- * Copyright (c) 2018-2021.
+ * Copyright (c) 2018-2024.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -36,6 +36,8 @@ public interface ArtifactIdentifier {
     String getClassifier();
 
     String getExtension();
+
+    ArtifactAttributeCollection getAttributes();
 
     static Predicate<ArtifactIdentifier> groupMatches(String group) {
         return identifier -> identifier.getGroup().matches(group);
